@@ -1,6 +1,3 @@
-import { rejects } from "assert";
-import { resolve } from "path";
-
 /** 
  * @module: parser.ts
  * @author: Austin Ruby 
@@ -46,12 +43,17 @@ graphQuill(
 
 `;
 
+// parent function to read file, 
+// call helper functions to parse out query string,
+// send request to GraphQL API,
+// and return response to output channel
 function readFileSendReqAndWriteResponse(filePath: string) {
-    fs.readFile(filePath, (err: Error, data: Buffer) => {
+  // read user's file  
+  fs.readFile(filePath, (err: Error, data: Buffer) => {
     if (err) {
       console.log(err)
     } else {
-      // console.log('got some data: ', data.toString())
+      // if no error, convert data to string and pass into gQParser to pull out query/ies
       const result = gQParser(data.toString());
       // send post request to API/graphql
         // then send response back to vscode output channel
@@ -60,61 +62,53 @@ function readFileSendReqAndWriteResponse(filePath: string) {
 }
 
 // given file path, read file at path and parse for instances of 'graphQuill'
-function gQParser(string: string) {
+function findGQ(string: string) {
   console.log(string);
-  const gq = 'graphQuill';
-  // temp counter to count instances of 'graphQuill' in string input
-  let counter: number = 0;
-  for (let i = 0; i < string.length; i += 1) {
-    if (string.slice(i, i + gq.length) === gq) counter += 1;
-  }
-  console.log(counter)
-  return counter;
-}
-
-enum BracketTokens {
-  '(' = ')',
-  '{' = '}',
-  '[' = ']'
-}
-
-enum closeBrackets {
-  ')',
-  '}',
-  ']'
-}
-
-// add characters to string while within parentheses or other type of brackets
-function balancedParens(input: string) {
-  const stack: string[] = [];
-  for (let i: number = 0; i < input.length; i++) {
-    if (input[i] in BracketTokens) {
-      stack.push(input[i]);
-    } 
-    else if (input[i] in closeBrackets) {
-      const popped: string | undefined = stack.pop();
-      let validatedPopped: string;
-      if(popped !== undefined) {
-        validatedPopped = popped;
-        if (validateToken(validatedPopped)){
-          if (BracketTokens[validatedPopped] !== input[i]) return false;
-        }
-      }
+  // define text to search for in file
+  const gq: string = 'graphQuill';
+  const queriesArr: string[] = [];
+  // iterate over string
+  for (let i: number = 0; i < string.length; i += 1) {
+    // if current slice of string is 'graphQuill'
+    // push evaluated result of parseQueries passing in
+    // string sliced from current char to end
+    // into queriesArr
+    if (string.slice(i, i + gq.length) === gq) {
+      queriesArr.push(parseQuery(string.slice(i + gq.length)));
     }
   }
-  return stack.length === 0;
+  console.log(queriesArr)
+  return queriesArr;
 }
 
-console.log(balancedParens('{()}'))
-
-// console.log(Object.values(BracketTokens))
-
-function validateToken(char: string): char is keyof typeof BracketTokens {
-  return char in BracketTokens
+// add characters to string while within parentheses
+function parseQuery(input: string) {
+  // initialize queryString to return once stack is empty
+  let queryString: string = '';
+  // initialize open and close parens
+  const openParen: string = '(';
+  const closeParen: string = ')';
+  // initialize stack to push/pop open parens to/from
+  const stack: string[] = [];
+  // initialize index to point to current char in string
+  let index: number = 0;
+  // iterate over input string at least once, while there are parens in the stack
+  // and index hasn't reached the end of the input string
+  do {
+    const currentChar: string = input[index]
+    // if current char is open paren, push to stack
+    // if current char is close paren, pop off of stack
+    if (currentChar === openParen) {
+      stack.push(currentChar);
+    } else if (currentChar === closeParen) {
+      if (!stack.length) return 'unbalanced parens';
+      stack.pop();
+    }
+    // add current char to queryString and increment index before next iteration of loop
+    queryString += currentChar;
+    index += 1;
+  } while (stack.length && index < input.length)
+  return queryString;
 }
 
-// console.log(validateToken('('))
-
-// console.log(gQParser(shortTest));
-// console.log(gQParser(longTest));
-// console.log(readFileSendReqAndWriteResponse(`${__dirname}/parseMeBaby.js`))
+// console.log(findGQ(longTest))
